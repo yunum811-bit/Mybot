@@ -1,0 +1,209 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>LINE Chatbot Admin</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body { font-family: 'Segoe UI', Tahoma, sans-serif; background: #f5f5f5; padding: 20px; }
+    .container { max-width: 800px; margin: 0 auto; }
+    h1 { text-align: center; color: #06c755; margin-bottom: 20px; }
+    
+    .login-box, .admin-box { background: white; border-radius: 12px; padding: 24px; box-shadow: 0 2px 8px rgba(0,0,0,0.1); margin-bottom: 20px; }
+    .login-box { max-width: 400px; margin: 100px auto; }
+    
+    label { display: block; margin-bottom: 6px; font-weight: bold; color: #333; }
+    input, textarea { width: 100%; padding: 10px; border: 1px solid #ddd; border-radius: 8px; font-size: 14px; margin-bottom: 12px; }
+    textarea { height: 80px; resize: vertical; }
+    
+    button { padding: 10px 20px; border: none; border-radius: 8px; cursor: pointer; font-size: 14px; font-weight: bold; }
+    .btn-primary { background: #06c755; color: white; }
+    .btn-primary:hover { background: #05a847; }
+    .btn-danger { background: #e74c3c; color: white; padding: 6px 12px; font-size: 12px; }
+    .btn-danger:hover { background: #c0392b; }
+    .btn-edit { background: #f39c12; color: white; padding: 6px 12px; font-size: 12px; margin-right: 4px; }
+    .btn-edit:hover { background: #d68910; }
+    
+    .reply-list { margin-top: 16px; }
+    .reply-item { background: #f9f9f9; border: 1px solid #eee; border-radius: 8px; padding: 14px; margin-bottom: 10px; display: flex; justify-content: space-between; align-items: flex-start; }
+    .reply-content { flex: 1; }
+    .reply-keywords { color: #06c755; font-weight: bold; margin-bottom: 4px; }
+    .reply-text { color: #555; font-size: 14px; }
+    .reply-actions { display: flex; gap: 4px; margin-left: 10px; }
+    
+    .hidden { display: none; }
+    .status { padding: 10px; border-radius: 8px; margin-bottom: 12px; text-align: center; }
+    .status.success { background: #d4edda; color: #155724; }
+    .status.error { background: #f8d7da; color: #721c24; }
+
+    .add-form { border-top: 1px solid #eee; padding-top: 16px; margin-top: 16px; }
+  </style>
+</head>
+<body>
+  <!-- Login -->
+  <div id="loginSection" class="login-box">
+    <h1>🤖 LINE Bot Admin</h1>
+    <label>รหัสผ่าน</label>
+    <input type="password" id="password" placeholder="ใส่รหัสผ่าน admin">
+    <button class="btn-primary" onclick="login()" style="width:100%">เข้าสู่ระบบ</button>
+    <div id="loginError" class="status error hidden"></div>
+  </div>
+
+  <!-- Admin Panel -->
+  <div id="adminSection" class="container hidden">
+    <h1>🤖 LINE Bot Admin</h1>
+    <div id="statusMsg" class="status hidden"></div>
+
+    <!-- Add new reply -->
+    <div class="admin-box">
+      <h3>➕ เพิ่มคำตอบใหม่</h3>
+      <div class="add-form">
+        <label>Keywords (คั่นด้วยเครื่องหมาย ,)</label>
+        <input type="text" id="newKeywords" placeholder="เช่น: โปรโมชั่น, ลดราคา, promotion">
+        <label>คำตอบ</label>
+        <textarea id="newReply" placeholder="ข้อความที่ต้องการให้บอทตอบ"></textarea>
+        <button class="btn-primary" onclick="addReply()">เพิ่มคำตอบ</button>
+      </div>
+    </div>
+
+    <!-- Reply list -->
+    <div class="admin-box">
+      <h3>📋 รายการคำตอบทั้งหมด (<span id="replyCount">0</span> รายการ)</h3>
+      <div id="replyList" class="reply-list"></div>
+    </div>
+
+    <button class="btn-danger" onclick="logout()" style="width:100%; padding:12px; font-size:16px;">ออกจากระบบ</button>
+  </div>
+
+  <script>
+    const API_URL = '/api/admin';
+    let token = '';
+
+    async function login() {
+      token = document.getElementById('password').value;
+      try {
+        const res = await fetch(API_URL, {
+          headers: { 'Authorization': 'Bearer ' + token }
+        });
+        if (res.ok) {
+          document.getElementById('loginSection').classList.add('hidden');
+          document.getElementById('adminSection').classList.remove('hidden');
+          loadReplies();
+        } else {
+          showLoginError('รหัสผ่านไม่ถูกต้อง');
+        }
+      } catch (e) {
+        showLoginError('เชื่อมต่อ server ไม่ได้');
+      }
+    }
+
+    function logout() {
+      token = '';
+      document.getElementById('loginSection').classList.remove('hidden');
+      document.getElementById('adminSection').classList.add('hidden');
+      document.getElementById('password').value = '';
+    }
+
+    function showLoginError(msg) {
+      const el = document.getElementById('loginError');
+      el.textContent = msg;
+      el.classList.remove('hidden');
+    }
+
+    function showStatus(msg, type) {
+      const el = document.getElementById('statusMsg');
+      el.textContent = msg;
+      el.className = 'status ' + type;
+      setTimeout(() => el.classList.add('hidden'), 3000);
+    }
+
+    async function loadReplies() {
+      const res = await fetch(API_URL, {
+        headers: { 'Authorization': 'Bearer ' + token }
+      });
+      const data = await res.json();
+      document.getElementById('replyCount').textContent = data.length;
+      renderReplies(data);
+    }
+
+    function renderReplies(replies) {
+      const list = document.getElementById('replyList');
+      list.innerHTML = replies.map((item, i) => `
+        <div class="reply-item">
+          <div class="reply-content">
+            <div class="reply-keywords">🔑 ${item.keywords.join(', ')}</div>
+            <div class="reply-text">💬 ${item.reply}</div>
+          </div>
+          <div class="reply-actions">
+            <button class="btn-edit" onclick="editReply(${i})">แก้ไข</button>
+            <button class="btn-danger" onclick="deleteReply(${i})">ลบ</button>
+          </div>
+        </div>
+      `).join('');
+    }
+
+    async function addReply() {
+      const keywordsStr = document.getElementById('newKeywords').value;
+      const reply = document.getElementById('newReply').value;
+      if (!keywordsStr || !reply) {
+        showStatus('กรุณากรอกข้อมูลให้ครบ', 'error');
+        return;
+      }
+      const keywords = keywordsStr.split(',').map(k => k.trim()).filter(k => k);
+      const res = await fetch(API_URL, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + token },
+        body: JSON.stringify({ keywords, reply })
+      });
+      if (res.ok) {
+        showStatus('เพิ่มคำตอบสำเร็จ!', 'success');
+        document.getElementById('newKeywords').value = '';
+        document.getElementById('newReply').value = '';
+        loadReplies();
+      } else {
+        showStatus('เกิดข้อผิดพลาด', 'error');
+      }
+    }
+
+    async function editReply(index) {
+      const newKeywords = prompt('แก้ไข keywords (คั่นด้วย ,):');
+      if (newKeywords === null) return;
+      const newReply = prompt('แก้ไขคำตอบ:');
+      if (newReply === null) return;
+
+      const body = { index };
+      if (newKeywords) body.keywords = newKeywords.split(',').map(k => k.trim()).filter(k => k);
+      if (newReply) body.reply = newReply;
+
+      const res = await fetch(API_URL, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + token },
+        body: JSON.stringify(body)
+      });
+      if (res.ok) {
+        showStatus('แก้ไขสำเร็จ!', 'success');
+        loadReplies();
+      }
+    }
+
+    async function deleteReply(index) {
+      if (!confirm('ต้องการลบคำตอบนี้?')) return;
+      const res = await fetch(API_URL, {
+        method: 'DELETE',
+        headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + token },
+        body: JSON.stringify({ index })
+      });
+      if (res.ok) {
+        showStatus('ลบสำเร็จ!', 'success');
+        loadReplies();
+      }
+    }
+
+    // Enter key to login
+    document.getElementById('password').addEventListener('keyup', (e) => {
+      if (e.key === 'Enter') login();
+    });
+  </script>
+</body>
+</html>

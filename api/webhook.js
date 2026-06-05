@@ -12,11 +12,16 @@ const client = new line.messagingApi.MessagingApiClient({
   channelAccessToken: process.env.LINE_CHANNEL_ACCESS_TOKEN,
 });
 
-// โหลดคำตอบจากไฟล์ JSON
+// โหลดคำตอบจากไฟล์ JSON (ใช้ /tmp ถ้ามี เพราะ admin อาจแก้ไว้)
 function loadReplies() {
-  const filePath = path.join(process.cwd(), 'replies.json');
-  const data = fs.readFileSync(filePath, 'utf-8');
-  return JSON.parse(data);
+  const tmpPath = '/tmp/replies.json';
+  const sourcePath = path.join(process.cwd(), 'replies.json');
+  try {
+    if (fs.existsSync(tmpPath)) {
+      return JSON.parse(fs.readFileSync(tmpPath, 'utf-8'));
+    }
+  } catch (e) {}
+  return JSON.parse(fs.readFileSync(sourcePath, 'utf-8'));
 }
 
 // สร้างคำตอบอัตโนมัติ
