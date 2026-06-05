@@ -6,6 +6,10 @@
       "use": "@vercel/node"
     },
     {
+      "src": "api/facebook.js",
+      "use": "@vercel/node"
+    },
+    {
       "src": "api/admin.js",
       "use": "@vercel/node"
     },
@@ -18,6 +22,10 @@
     {
       "src": "/webhook",
       "dest": "/api/webhook.js"
+    },
+    {
+      "src": "/facebook",
+      "dest": "/api/facebook.js"
     },
     {
       "src": "/api/admin",
